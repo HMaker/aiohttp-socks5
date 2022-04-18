@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "aiohttp-socks5"
+version = "0.0.1"
+description = "SOCKS5 proxy connector for aiohttp"
+packages = [
+    {include = "aiohttp_socks5"}
+]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/HMaker/aiohttp-socks5"
+classifiers = [
+    "Programming Language :: Python :: 3 :: Only",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Internet"
+]
+authors = [
+    "Heraldo Lucena <heraldo.dev@gmail.com>"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<=4.0"
+aiohttp = ">=3.0.0,<=4.0.0"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
