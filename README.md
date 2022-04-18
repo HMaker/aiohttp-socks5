@@ -7,7 +7,7 @@ The `aiohttp-socks5` package provides a SOCKS5 proxy connector for [aiohttp](htt
 
 ## Installation
 ```
-pip install git+https://www.github.com/HMaker/aiohttp-socks5
+pip install git+https://github.com/HMaker/aiohttp-socks5.git@latest
 ```
 
 ## Usage
