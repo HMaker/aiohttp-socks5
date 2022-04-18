@@ -19,8 +19,10 @@ class SOCKSEnum(IntEnum):
         return value in cls._value2member_map_
 
 class SOCKSAuthMethod(SOCKSEnum):
-    NO_AUTH = 0
+    NO_AUTH_REQUIRED = 0
+    GSSAPI = 1
     USERNAME = 2
+    NO_ACCEPTABLE_METHODS = 255
 
 class SOCKSCommand(SOCKSEnum):
     CONNECT = 1
@@ -203,7 +205,7 @@ class SOCKSUsernameAuthRespReader(StreamMessageReader[SOCKSUsernameAuthResponse]
             return True
         return False
 
-    def read_method(self, buffer: StreamBuffer):
+    def read_status(self, buffer: StreamBuffer):
         if buffer.unread >= 1:
             self._status = buffer.read(1)[0]
             return True
@@ -339,34 +341,29 @@ async def open_socks_connection(socks_url: URL, host: str, port: int, ssl: t.Uni
     writer = asyncio.StreamWriter(transport, protocol, reader, loop)
     buffer = StreamBuffer(bytearray(0))
     # authenticate
-    if socks_url.user is not None:
-        writer.write(SOCKSAuthNegotiationRequest(
-            SOCKS_VER,
-            [SOCKSAuthMethod.NO_AUTH, SOCKSAuthMethod.USERNAME]
+    writer.write(SOCKSAuthNegotiationRequest(
+        SOCKS_VER,
+        [SOCKSAuthMethod.NO_AUTH_REQUIRED, SOCKSAuthMethod.USERNAME]
+    ).encode())
+    await writer.drain()
+    resp = await SOCKSAuthNegResponseReader.from_stream(buffer, reader)
+    if resp.method == SOCKSAuthMethod.USERNAME:
+        if socks_url.user is None:
+            writer.close()
+            raise SOCKSAuthError('SOCKS server requires username authentication')
+        writer.write(SOCKSUsernameAuthRequest(
+            0x01,
+            socks_url.user,
+            socks_url.password
         ).encode())
         await writer.drain()
-        resp = await SOCKSAuthNegResponseReader.from_stream(buffer, reader)
-        if resp.method == SOCKSAuthMethod.USERNAME:
-            writer.write(SOCKSUsernameAuthRequest(
-                SOCKS_VER,
-                socks_url.user,
-                socks_url.password
-            ).encode())
-            await writer.drain()
-            resp = await SOCKSUsernameAuthRespReader.from_stream(buffer, reader)
-            if resp.status != 0:
-                writer.close()
-                raise SOCKSAuthError(f'SOCKS server rejected username authentication: Status {resp.status}')
-        elif resp.method != SOCKSAuthMethod.NO_AUTH:
+        resp = await SOCKSUsernameAuthRespReader.from_stream(buffer, reader)
+        if resp.status != 0:
             writer.close()
-            raise SOCKSServerError(f'SOCKS server replied auth negotiation with unexpected method (expected NO_AUTH or USERNAME): {resp.method}')
-    else:
-        writer.write(SOCKSAuthNegotiationRequest(SOCKS_VER, [SOCKSAuthMethod.NO_AUTH]).encode())
-        await writer.drain()
-        resp = await SOCKSAuthNegResponseReader.from_stream(buffer, reader)
-        if resp.method != SOCKSAuthMethod.NO_AUTH:
-            writer.close()
-            raise SOCKSServerError(f'SOCKS server replied auth negotiation with unexpected method (expected NO_AUTH): {resp.method}')
+            raise SOCKSAuthError(f'SOCKS server rejected username authentication: Status {resp.status}')
+    elif resp.method != SOCKSAuthMethod.NO_AUTH_REQUIRED:
+        writer.close()
+        raise SOCKSServerError(f'SOCKS server replied auth negotiation with unexpected method (expected NO_AUTH_REQUIRED or USERNAME): {resp.method} {SOCKSAuthMethod(resp.method).name}')
     # create socks tunnel
     try:
         ipaddress.IPv4Address(host)

@@ -21,7 +21,7 @@ class SOCKSConnector(TCPConnector):
                     transport = await open_socks_connection(req.proxy, req.host, 443)
                 else:
                     raise RuntimeError(f'unexpected URL scheme: {req.url.scheme}')
-            except SOCKSServerError as e:
+            except (SOCKSServerError, ConnectionError) as e:
                 raise ClientConnectionError('SOCKS connection failed') from e
             if req.is_ssl():
                 return await self._start_tls_connection(transport, req=req, timeout=timeout)
